@@ -107,3 +107,19 @@ body {
     font-weight: bold;
     color: #333;
 }
+
+/* Chart containers */
+.card canvas {
+    max-height: 200px;
+}
+
+/* Make stat boxes more compact */
+.stat-box {
+    text-align: center;
+    min-width: 100px;
+}
+
+.stat-value small {
+    font-size: 12px;
+    font-weight: normal;
+}

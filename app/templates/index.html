@@ -6,6 +6,9 @@
     <title>FT-LLM Demo Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/styles.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
 </head>
 <body>
     <div class="container-fluid py-4">
@@ -20,9 +23,13 @@
                     <div class="stat-label">TP Size</div>
                     <div class="stat-value" id="tp-size">-</div>
                 </div>
+                <div class="stat-box">
+                    <div class="stat-label">Throughput</div>
+                    <div class="stat-value" id="current-throughput">- <small>tok/s</small></div>
+                </div>
                 <div>
                     <span id="relay-status" class="status-badge status-disconnected">Relay: Disconnected</span>
-                    <br class="d-md-none">
+                    <br>
                     <span id="hpc-status" class="status-badge status-disconnected mt-1">HPC: Disconnected</span>
                 </div>
             </div>
@@ -37,6 +44,42 @@
             <div class="card-body">
                 <div id="gpu-grid" class="row g-3">
                     <div class="col-12 text-center text-muted">Waiting for HPC connection...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <strong>📈 Throughput</strong>
+                        <small class="text-muted ms-2">(tokens/sec)</small>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="throughput-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <strong>⏱️ Latency</strong>
+                        <small class="text-muted ms-2">(ms/token)</small>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="latency-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <strong>🔢 TP World Size</strong>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="tp-chart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -63,7 +106,7 @@
                     </div>
                     <div class="card-body">
                         <pre id="output" class="bg-light p-3 rounded" 
-                            style="min-height: 150px; max-height: 400px; overflow-y: auto;">Waiting for response...</pre>
+                            style="min-height: 150px; max-height: 300px; overflow-y: auto;">Waiting for response...</pre>
                     </div>
                 </div>
             </div>
@@ -71,12 +114,13 @@
             <!-- Events Log -->
             <div class="col-lg-4">
                 <div class="card">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <strong>📋 Events Log</strong>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearEvents()">Clear</button>
                     </div>
                     <div class="card-body">
                         <pre id="events" class="bg-light p-2 rounded" 
-                            style="height: 400px; overflow-y: auto; font-size: 11px;"></pre>
+                            style="height: 350px; overflow-y: auto; font-size: 11px;"></pre>
                     </div>
                 </div>
             </div>
@@ -85,7 +129,7 @@
         <!-- Footer -->
         <div class="text-center text-muted mt-4">
             <small>
-                WebSocket: <code>/ws/&lt;room&gt;/&lt;client_id&gt;?role=ui|hpc</code>
+                FT-LLM Demo | WebSocket: <code>/ws/&lt;room&gt;/&lt;client_id&gt;?role=ui|hpc</code>
             </small>
         </div>
     </div>
