@@ -123,3 +123,158 @@ body {
     font-size: 12px;
     font-weight: normal;
 }
+
+/* ============================================
+   Topology / RS backup visualization
+   ============================================ */
+
+.topology-container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.topology-node {
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    min-width: 140px;
+}
+
+.topology-node-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.topology-node-subtitle {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.topology-node-cpu {
+    flex: 0 0 190px;
+    border: 1px solid #dee2e6;
+}
+
+.topology-node-gpu-small {
+    flex: 0 0 90px;
+    text-align: center;
+    padding: 8px;
+    font-size: 12px;
+}
+
+.topology-gpu-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    flex: 0 0 auto;
+}
+
+.topology-links {
+    flex: 1 1 auto;
+    min-width: 160px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.topology-link {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.topology-link-label {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.topology-link-pcie::before,
+.topology-link-nvlink::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    opacity: 0;
+}
+
+/* CPU memory bar (DRAM used for KV) */
+.topology-memory-bar {
+    margin-top: 8px;
+    height: 10px;
+    border-radius: 5px;
+    background: #e9ecef;
+    overflow: hidden;
+}
+
+.topology-memory-fill {
+    height: 100%;
+    width: 8%;
+    background: linear-gradient(90deg, #17a2b8, #6610f2);
+    transition: width 0.4s ease;
+}
+
+/* Encode: GPUs -> CPU (green-ish flow left) */
+.topology-encode-active .topology-link-pcie::before,
+.topology-encode-active .topology-link-nvlink::before {
+    background: linear-gradient(90deg, rgba(40,167,69,0.2), rgba(40,167,69,0.9));
+    animation: topology-flow-encode 1.1s linear infinite;
+    opacity: 1;
+}
+
+/* Decode: CPU -> GPUs (blue-ish flow right) */
+.topology-decode-active .topology-link-pcie::before,
+.topology-decode-active .topology-link-nvlink::before {
+    background: linear-gradient(90deg, rgba(23,162,184,0.2), rgba(23,162,184,0.9));
+    animation: topology-flow-decode 1.1s linear infinite;
+    opacity: 1;
+}
+
+@keyframes topology-flow-encode {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+}
+
+@keyframes topology-flow-decode {
+    from { transform: translateX(100%); }
+    to   { transform: translateX(-100%); }
+}
+
+/* Degraded mode: slightly dim the GPUs in the topology strip */
+.topology-degraded .topology-node-gpu-small {
+    opacity: 0.8;
+}
+
+/* Reuse GPU state colors for small GPU nodes */
+.topology-node-gpu-small.gpu-healthy {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: #fff;
+}
+
+.topology-node-gpu-small.gpu-failed {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+    color: #fff;
+}
+
+.topology-node-gpu-small.gpu-recovering {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+    color: #212529;
+    animation: pulse 1s infinite;
+}
+
+.topology-legend {
+    line-height: 1.4;
+}

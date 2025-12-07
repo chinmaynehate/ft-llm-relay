@@ -48,6 +48,66 @@
             </div>
         </div>
 
+        <!-- Topology & RS Backup -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <strong>🧬 KV Backup Topology</strong>
+                <small class="text-muted ms-2">CPU DRAM backup, NVLink, and PCIe</small>
+            </div>
+            <div class="card-body">
+                <div id="topology-diagram" class="topology-container">
+                    <!-- CPU / DRAM node -->
+                    <div class="topology-node topology-node-cpu">
+                        <div class="topology-node-title">CPU / DRAM</div>
+                        <div class="topology-node-subtitle">KV backup storage</div>
+                        <div class="topology-memory-bar">
+                            <div id="topology-cpu-memory-fill" class="topology-memory-fill"></div>
+                        </div>
+                        <div class="topology-node-foot small text-muted mt-1">
+                            Shards + RS parity
+                        </div>
+                    </div>
+
+                    <!-- Links (PCIe + NVLink) -->
+                    <div class="topology-links">
+                        <div class="topology-link topology-link-pcie">
+                            <span class="topology-link-label">PCIe</span>
+                        </div>
+                        <div class="topology-link topology-link-nvlink">
+                            <span class="topology-link-label">NVLink</span>
+                        </div>
+                    </div>
+
+                    <!-- GPU mini-nodes (mirrors real GPUs) -->
+                    <div class="topology-gpu-strip" id="topology-gpus">
+                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-0">
+                            <div class="topology-node-title">GPU 0</div>
+                        </div>
+                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-1">
+                            <div class="topology-node-title">GPU 1</div>
+                        </div>
+                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-2">
+                            <div class="topology-node-title">GPU 2</div>
+                        </div>
+                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-3">
+                            <div class="topology-node-title">GPU 3</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mt-3 small">
+                    <span id="rs-encode-badge" class="badge bg-secondary">RS Encode: idle</span>
+                    <span id="rs-decode-badge" class="badge bg-secondary">RS Decode: idle</span>
+                    <span id="topology-mode-badge" class="badge bg-secondary">Mode: normal</span>
+                </div>
+
+                <div class="topology-legend small text-muted mt-2">
+                    Green GPUs = healthy · Red = failed · Yellow = degraded / recovering.
+                    Animated links show RS backup flows between GPU KV cache and CPU DRAM.
+                </div>
+            </div>
+        </div>
+
         <!-- Charts Row -->
         <div class="row mb-4">
             <div class="col-md-4">

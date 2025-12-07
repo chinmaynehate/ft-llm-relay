@@ -23,6 +23,15 @@ let latestGpuStatus = null;
 let hpcConnected = false;
 let currentRequestId = null;
 
+// KV / RS topology state (purely visual for now)
+let topologyState = {
+    inferenceActive: false,
+    rsEncodeActive: false,
+    rsDecodeActive: false,
+    degradedMode: false,
+    failedGpuId: null,
+};
+
 // Chart configuration
 const MAX_DATA_POINTS = 60;  // Keep last 60 seconds of data
 let throughputChart, latencyChart, tpChart;
@@ -246,6 +255,94 @@ function clearEvents() {
 }
 
 // ============================================
+// Topology Visualization
+// ============================================
+
+function renderTopology() {
+    const topoRoot = document.getElementById('topology-diagram');
+    if (!topoRoot) return;
+
+    // Root container classes
+    topoRoot.classList.toggle('topology-encode-active', topologyState.rsEncodeActive);
+    topoRoot.classList.toggle('topology-decode-active', topologyState.rsDecodeActive);
+    topoRoot.classList.toggle('topology-degraded', topologyState.degradedMode);
+
+    // CPU DRAM fill
+    const cpuMemFill = document.getElementById('topology-cpu-memory-fill');
+    if (cpuMemFill) {
+        let fill = 8;
+        if (topologyState.rsEncodeActive || topologyState.rsDecodeActive) {
+            fill = 70;
+        } else if (topologyState.inferenceActive) {
+            fill = 40;
+        } else {
+            fill = 12;
+        }
+        cpuMemFill.style.width = `${fill}%`;
+    }
+
+    // Mini GPU nodes mirror real GPU states
+    if (latestGpuStatus && latestGpuStatus.gpus) {
+        latestGpuStatus.gpus.forEach(g => {
+            const el = document.getElementById(`topo-gpu-${g.id}`);
+            if (!el) return;
+            el.style.display = '';
+            el.classList.remove('gpu-healthy', 'gpu-failed', 'gpu-recovering');
+            el.classList.add(`gpu-${g.state}`);
+            // Update label just in case IDs are non-contiguous later
+            const title = el.querySelector('.topology-node-title');
+            if (title) {
+                title.textContent = `GPU ${g.id}`;
+            }
+        });
+
+        // Hide any extra placeholder GPU nodes
+        for (let i = latestGpuStatus.gpus.length; i < 8; i++) {
+            const el = document.getElementById(`topo-gpu-${i}`);
+            if (el) el.style.display = 'none';
+        }
+    }
+
+    // Badges
+    const encodeBadge = document.getElementById('rs-encode-badge');
+    const decodeBadge = document.getElementById('rs-decode-badge');
+    const modeBadge = document.getElementById('topology-mode-badge');
+
+    if (encodeBadge) {
+        if (topologyState.rsEncodeActive) {
+            encodeBadge.textContent = 'RS Encode: active';
+            encodeBadge.className = 'badge bg-success';
+        } else if (topologyState.inferenceActive) {
+            encodeBadge.textContent = 'RS Encode: streaming';
+            encodeBadge.className = 'badge bg-info';
+        } else {
+            encodeBadge.textContent = 'RS Encode: idle';
+            encodeBadge.className = 'badge bg-secondary';
+        }
+    }
+
+    if (decodeBadge) {
+        if (topologyState.rsDecodeActive) {
+            decodeBadge.textContent = 'RS Decode: recovering';
+            decodeBadge.className = 'badge bg-warning text-dark';
+        } else {
+            decodeBadge.textContent = 'RS Decode: idle';
+            decodeBadge.className = 'badge bg-secondary';
+        }
+    }
+
+    if (modeBadge) {
+        if (topologyState.degradedMode) {
+            modeBadge.textContent = 'Mode: degraded (TP < full)';
+            modeBadge.className = 'badge bg-warning text-dark';
+        } else {
+            modeBadge.textContent = 'Mode: normal';
+            modeBadge.className = 'badge bg-primary';
+        }
+    }
+}
+
+// ============================================
 // GPU Rendering
 // ============================================
 
@@ -320,6 +417,9 @@ function renderGpus(status) {
             }
         };
     });
+
+    // Sync topology visualization with latest GPU states
+    renderTopology();
 }
 
 // ============================================
@@ -383,6 +483,12 @@ function handleMessage(data) {
             if (data.finished) {
                 outputEl.textContent += '\n\n--- Generation complete ---\n';
                 appendEvent(`Request ${data.request_id} completed`, 'success');
+
+                // Inference done → stop RS encode animation
+                topologyState.inferenceActive = false;
+                topologyState.rsEncodeActive = false;
+                // decodeActive may still be true if we're mid-recovery
+                renderTopology();
             }
             // Auto-scroll output
             outputEl.scrollTop = outputEl.scrollHeight;
@@ -397,6 +503,33 @@ function handleMessage(data) {
                                  data.event === 'failed' ? 'error' : 'warning';
             appendEvent(`🔧 RECOVERY: ${data.msg}`, recoveryType);
             addChartAnnotation(data.msg);
+
+            // Drive topology animation based on recovery phase
+            const ev = data.event;
+            if (ev === 'started') {
+                // Failure detected, entering degraded mode
+                topologyState.degradedMode = true;
+                topologyState.rsDecodeActive = false;
+            } else if (ev === 'kv_recovery') {
+                // RS decode from CPU backup
+                topologyState.degradedMode = true;
+                topologyState.rsDecodeActive = true;
+                topologyState.rsEncodeActive = false;
+            } else if (ev === 'degraded_complete') {
+                // Now running stably with fewer GPUs (TP=3)
+                topologyState.degradedMode = true;
+                topologyState.rsDecodeActive = false;
+            } else if (ev && ev.startsWith('hotswap_')) {
+                // Hot-swap path: bring GPU back, redistribute KV
+                topologyState.degradedMode = true;
+                topologyState.rsDecodeActive = true;
+            } else if (ev === 'complete') {
+                // Full hot-swap finished → back to normal mode
+                topologyState.degradedMode = false;
+                topologyState.rsDecodeActive = false;
+            }
+
+            renderTopology();
             break;
 
         case 'status':
@@ -405,6 +538,16 @@ function handleMessage(data) {
                 updateHpcStatus(false);
                 appendEvent('HPC disconnected', 'error');
                 renderGpus(null);
+
+                // Reset topology state
+                topologyState = {
+                    inferenceActive: false,
+                    rsEncodeActive: false,
+                    rsDecodeActive: false,
+                    degradedMode: false,
+                    failedGpuId: null,
+                };
+                renderTopology();
             } else if (data.status === 'connected' && data.role === 'hpc') {
                 hpcConnected = true;
                 updateHpcStatus(true);
@@ -448,6 +591,11 @@ function sendKill(gpuId) {
     };
     ws.send(JSON.stringify(msg));
     appendEvent(`🔪 Requested kill of GPU ${gpuId}`, 'warning');
+
+    // Visually: enter degraded mode immediately
+    topologyState.degradedMode = true;
+    topologyState.failedGpuId = gpuId;
+    renderTopology();
 }
 
 function sendPrompt() {
@@ -465,6 +613,13 @@ function sendPrompt() {
     const reqId = `req-${uuid8()}`;
     currentRequestId = reqId;
     outputEl.textContent = '';
+
+    // Visually: inference started → start RS encode animation
+    topologyState.inferenceActive = true;
+    topologyState.rsEncodeActive = true;
+    topologyState.rsDecodeActive = false;
+    topologyState.degradedMode = false;
+    renderTopology();
 
     const msg = {
         type: 'submit_prompt',
