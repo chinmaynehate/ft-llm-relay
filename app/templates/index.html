@@ -48,62 +48,98 @@
             </div>
         </div>
 
-        <!-- Topology & RS Backup -->
+        <!-- TP Topology & KV / RS Flow -->
         <div class="card mb-4">
-            <div class="card-header">
-                <strong>🧬 KV Backup Topology</strong>
-                <small class="text-muted ms-2">CPU DRAM backup, NVLink, and PCIe</small>
-            </div>
-            <div class="card-body">
-                <div id="topology-diagram" class="topology-container">
-                    <!-- CPU / DRAM node -->
-                    <div class="topology-node topology-node-cpu">
-                        <div class="topology-node-title">CPU / DRAM</div>
-                        <div class="topology-node-subtitle">KV backup storage</div>
-                        <div class="topology-memory-bar">
-                            <div id="topology-cpu-memory-fill" class="topology-memory-fill"></div>
-                        </div>
-                        <div class="topology-node-foot small text-muted mt-1">
-                            Shards + RS parity
-                        </div>
-                    </div>
-
-                    <!-- Links (PCIe + NVLink) -->
-                    <div class="topology-links">
-                        <div class="topology-link topology-link-pcie">
-                            <span class="topology-link-label">PCIe</span>
-                        </div>
-                        <div class="topology-link topology-link-nvlink">
-                            <span class="topology-link-label">NVLink</span>
-                        </div>
-                    </div>
-
-                    <!-- GPU mini-nodes (mirrors real GPUs) -->
-                    <div class="topology-gpu-strip" id="topology-gpus">
-                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-0">
-                            <div class="topology-node-title">GPU 0</div>
-                        </div>
-                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-1">
-                            <div class="topology-node-title">GPU 1</div>
-                        </div>
-                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-2">
-                            <div class="topology-node-title">GPU 2</div>
-                        </div>
-                        <div class="topology-node topology-node-gpu-small" id="topo-gpu-3">
-                            <div class="topology-node-title">GPU 3</div>
-                        </div>
-                    </div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>🧬 TP Topology & KV Backup</strong>
+                    <small class="text-muted ms-2">NVLink tensor-parallel ring, PCIe to CPU DRAM</small>
                 </div>
-
-                <div class="d-flex flex-wrap gap-2 mt-3 small">
-                    <span id="rs-encode-badge" class="badge bg-secondary">RS Encode: idle</span>
-                    <span id="rs-decode-badge" class="badge bg-secondary">RS Decode: idle</span>
+                <div class="small">
+                    <span id="rs-encode-badge" class="badge bg-secondary me-1">RS Encode: idle</span>
+                    <span id="rs-decode-badge" class="badge bg-secondary me-1">RS Decode: idle</span>
                     <span id="topology-mode-badge" class="badge bg-secondary">Mode: normal</span>
                 </div>
+            </div>
+            <div class="card-body">
+                <div id="tp-topology" class="tp-topology">
+                    <!-- GPU row -->
+                    <div class="tp-gpu-row">
+                        <div class="tp-gpu-node gpu-unknown" id="tp-gpu-0">
+                            <div class="tp-gpu-label">GPU 0</div>
+                        </div>
+                        <div class="tp-gpu-node gpu-unknown" id="tp-gpu-1">
+                            <div class="tp-gpu-label">GPU 1</div>
+                        </div>
+                        <div class="tp-gpu-node gpu-unknown" id="tp-gpu-2">
+                            <div class="tp-gpu-label">GPU 2</div>
+                        </div>
+                        <div class="tp-gpu-node gpu-unknown" id="tp-gpu-3">
+                            <div class="tp-gpu-label">GPU 3</div>
+                        </div>
+                    </div>
 
-                <div class="topology-legend small text-muted mt-2">
-                    Green GPUs = healthy · Red = failed · Yellow = degraded / recovering.
-                    Animated links show RS backup flows between GPU KV cache and CPU DRAM.
+                    <!-- NVLink bus (tensor parallel ring: weights + activations) -->
+                    <div class="tp-bus tp-nvlink-bus">
+                        <span class="tp-bus-label">NVLink ring (TP: weights + activations, gather/all-reduce)</span>
+                        <div class="tp-bus-tap tp-nvlink-tap-0"></div>
+                        <div class="tp-bus-tap tp-nvlink-tap-1"></div>
+                        <div class="tp-bus-tap tp-nvlink-tap-2"></div>
+                        <div class="tp-bus-tap tp-nvlink-tap-3"></div>
+                    </div>
+
+                    <!-- PCIe bus (GPU <-> CPU DRAM for KV backup / RS) -->
+                    <div class="tp-bus tp-pcie-bus">
+                        <span class="tp-bus-label">PCIe (KV backup, RS encode / decode)</span>
+                        <div class="tp-bus-tap tp-pcie-tap-0"></div>
+                        <div class="tp-bus-tap tp-pcie-tap-1"></div>
+                        <div class="tp-bus-tap tp-pcie-tap-2"></div>
+                        <div class="tp-bus-tap tp-pcie-tap-3"></div>
+                    </div>
+
+                    <!-- CPU / DRAM and controller -->
+                    <div class="tp-bottom-row">
+                        <div class="tp-cpu-column">
+                            <div class="tp-cpu-link"></div>
+                            <div class="tp-cpu-box">
+                                <div class="tp-node-title">CPU / DRAM</div>
+                                <div class="tp-node-subtitle">KV shards + RS parity</div>
+                                <div class="tp-cpu-mem-bar">
+                                    <div id="tp-cpu-mem-fill" class="tp-cpu-mem-fill"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tp-controller-box">
+                            <div class="tp-node-title">FT / TP Controller</div>
+                            <ul class="tp-controller-list">
+                                <li data-role="inference">Inference (tokens, activations)</li>
+                                <li data-role="gather">TP gather / all-reduce</li>
+                                <li data-role="rs-encode">RS parity generation (GPU → CPU)</li>
+                                <li data-role="rs-decode">RS decode (CPU → GPU)</li>
+                                <li data-role="kv-cache">KV cache sharding & mapping</li>
+                                <li data-role="weights">Sharded weights across GPUs</li>
+                                <li data-role="degraded">Degraded mode (TP &lt; full)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Legend -->
+                <div class="tp-legend small text-muted mt-3">
+                    <div class="tp-legend-row">
+                        <span class="legend-box legend-gpu-healthy"></span> Healthy GPU
+                        <span class="legend-box legend-gpu-failed ms-3"></span> Failed GPU
+                        <span class="legend-box legend-gpu-recovering ms-3"></span> Recovering GPU
+                    </div>
+                    <div class="tp-legend-row mt-1">
+                        <span class="legend-line legend-nvlink"></span> NVLink tensor-parallel ring
+                        <span class="legend-line legend-pcie ms-3"></span> PCIe link to CPU / DRAM
+                    </div>
+                    <div class="tp-legend-row mt-1">
+                        <span class="legend-line legend-flow-inference"></span> Animated: inference / TP traffic
+                        <span class="legend-line legend-flow-encode ms-3"></span> Animated: RS encode (GPU → CPU)
+                        <span class="legend-line legend-flow-decode ms-3"></span> Animated: RS decode (CPU → GPU)
+                    </div>
                 </div>
             </div>
         </div>

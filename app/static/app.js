@@ -23,7 +23,7 @@ let latestGpuStatus = null;
 let hpcConnected = false;
 let currentRequestId = null;
 
-// KV / RS topology state (purely visual for now)
+// KV / RS topology state (purely visual)
 let topologyState = {
     inferenceActive: false,
     rsEncodeActive: false,
@@ -33,7 +33,7 @@ let topologyState = {
 };
 
 // Chart configuration
-const MAX_DATA_POINTS = 60;  // Keep last 60 seconds of data
+const MAX_DATA_POINTS = 60;  // Keep last N points
 let throughputChart, latencyChart, tpChart;
 let chartData = {
     labels: [],
@@ -61,35 +61,22 @@ function initCharts() {
     const commonOptions = {
         responsive: true,
         maintainAspectRatio: false,
-        animation: {
-            duration: 0  // Disable animation for real-time updates
-        },
+        animation: { duration: 0 },
         scales: {
             x: {
                 display: true,
-                title: {
-                    display: false
-                },
-                ticks: {
-                    maxTicksLimit: 6,
-                    font: { size: 10 }
-                }
+                ticks: { maxTicksLimit: 6, font: { size: 10 } },
             },
             y: {
                 beginAtZero: true,
-                ticks: {
-                    font: { size: 10 }
-                }
+                ticks: { font: { size: 10 } },
             }
         },
         plugins: {
-            legend: {
-                display: false
-            }
+            legend: { display: false }
         }
     };
 
-    // Throughput Chart
     const throughputCtx = document.getElementById('throughput-chart').getContext('2d');
     throughputChart = new Chart(throughputCtx, {
         type: 'line',
@@ -111,17 +98,12 @@ function initCharts() {
                 ...commonOptions.scales,
                 y: {
                     ...commonOptions.scales.y,
-                    title: {
-                        display: true,
-                        text: 'tok/s',
-                        font: { size: 10 }
-                    }
+                    title: { display: true, text: 'tok/s', font: { size: 10 } }
                 }
             }
         }
     });
 
-    // Latency Chart
     const latencyCtx = document.getElementById('latency-chart').getContext('2d');
     latencyChart = new Chart(latencyCtx, {
         type: 'line',
@@ -143,17 +125,12 @@ function initCharts() {
                 ...commonOptions.scales,
                 y: {
                     ...commonOptions.scales.y,
-                    title: {
-                        display: true,
-                        text: 'ms',
-                        font: { size: 10 }
-                    }
+                    title: { display: true, text: 'ms', font: { size: 10 } }
                 }
             }
         }
     });
 
-    // TP Size Chart
     const tpCtx = document.getElementById('tp-chart').getContext('2d');
     tpChart = new Chart(tpCtx, {
         type: 'line',
@@ -178,15 +155,8 @@ function initCharts() {
                     ...commonOptions.scales.y,
                     min: 0,
                     max: 5,
-                    ticks: {
-                        stepSize: 1,
-                        font: { size: 10 }
-                    },
-                    title: {
-                        display: true,
-                        text: 'GPUs',
-                        font: { size: 10 }
-                    }
+                    ticks: { stepSize: 1, font: { size: 10 } },
+                    title: { display: true, text: 'GPUs', font: { size: 10 } }
                 }
             }
         }
@@ -195,46 +165,38 @@ function initCharts() {
 
 function updateCharts(metrics) {
     const now = formatTime(Date.now());
-    
-    // Add new data point
+
     chartData.labels.push(now);
     chartData.throughput.push(metrics.throughput || 0);
     chartData.latency.push(metrics.latency || 0);
     chartData.tpSize.push(metrics.tp_size || 0);
-    
-    // Keep only last MAX_DATA_POINTS
+
     if (chartData.labels.length > MAX_DATA_POINTS) {
         chartData.labels.shift();
         chartData.throughput.shift();
         chartData.latency.shift();
         chartData.tpSize.shift();
     }
-    
-    // Update throughput chart
+
     throughputChart.data.labels = chartData.labels;
     throughputChart.data.datasets[0].data = chartData.throughput;
     throughputChart.update('none');
-    
-    // Update latency chart
+
     latencyChart.data.labels = chartData.labels;
     latencyChart.data.datasets[0].data = chartData.latency;
     latencyChart.update('none');
-    
-    // Update TP chart
+
     tpChart.data.labels = chartData.labels;
     tpChart.data.datasets[0].data = chartData.tpSize;
     tpChart.update('none');
-    
-    // Update current throughput display
+
     if (currentThroughputEl && metrics.throughput !== undefined) {
         currentThroughputEl.innerHTML = `${metrics.throughput.toFixed(1)} <small>tok/s</small>`;
     }
 }
 
-function addChartAnnotation(label, color = 'red') {
-    // Add a vertical line annotation at current time
-    // This marks events like "GPU killed" or "Recovery complete"
-    const now = formatTime(Date.now());
+function addChartAnnotation(label) {
+    // Right now just log in events; can integrate annotation plugin later
     appendEvent(`📍 Chart marker: ${label}`);
 }
 
@@ -244,7 +206,10 @@ function addChartAnnotation(label, color = 'red') {
 
 function appendEvent(msg, type = 'info') {
     const timestamp = formatTime(Date.now());
-    const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+    const prefix = type === 'error' ? '❌'
+        : type === 'success' ? '✅'
+        : type === 'warning' ? '⚠️'
+        : 'ℹ️';
     eventsEl.textContent += `[${timestamp}] ${prefix} ${msg}\n`;
     eventsEl.scrollTop = eventsEl.scrollHeight;
 }
@@ -259,51 +224,42 @@ function clearEvents() {
 // ============================================
 
 function renderTopology() {
-    const topoRoot = document.getElementById('topology-diagram');
+    const topoRoot = document.getElementById('tp-topology');
     if (!topoRoot) return;
 
-    // Root container classes
-    topoRoot.classList.toggle('topology-encode-active', topologyState.rsEncodeActive);
-    topoRoot.classList.toggle('topology-decode-active', topologyState.rsDecodeActive);
-    topoRoot.classList.toggle('topology-degraded', topologyState.degradedMode);
+    // Root classes control bus animations
+    topoRoot.classList.toggle('tp-inference-active', topologyState.inferenceActive);
+    topoRoot.classList.toggle('tp-encode-active', topologyState.rsEncodeActive);
+    topoRoot.classList.toggle('tp-decode-active', topologyState.rsDecodeActive);
+    topoRoot.classList.toggle('tp-degraded', topologyState.degradedMode);
 
-    // CPU DRAM fill
-    const cpuMemFill = document.getElementById('topology-cpu-memory-fill');
-    if (cpuMemFill) {
-        let fill = 8;
+    // CPU DRAM fill: idle vs encode/decode vs inference
+    const cpuFill = document.getElementById('tp-cpu-mem-fill');
+    if (cpuFill) {
+        let width = 10;
         if (topologyState.rsEncodeActive || topologyState.rsDecodeActive) {
-            fill = 70;
+            width = 75;
         } else if (topologyState.inferenceActive) {
-            fill = 40;
+            width = 45;
         } else {
-            fill = 12;
+            width = 15;
         }
-        cpuMemFill.style.width = `${fill}%`;
+        cpuFill.style.width = `${width}%`;
     }
 
     // Mini GPU nodes mirror real GPU states
     if (latestGpuStatus && latestGpuStatus.gpus) {
         latestGpuStatus.gpus.forEach(g => {
-            const el = document.getElementById(`topo-gpu-${g.id}`);
-            if (!el) return;
-            el.style.display = '';
-            el.classList.remove('gpu-healthy', 'gpu-failed', 'gpu-recovering');
-            el.classList.add(`gpu-${g.state}`);
-            // Update label just in case IDs are non-contiguous later
-            const title = el.querySelector('.topology-node-title');
-            if (title) {
-                title.textContent = `GPU ${g.id}`;
-            }
+            const node = document.getElementById(`tp-gpu-${g.id}`);
+            if (!node) return;
+            node.classList.remove('gpu-healthy', 'gpu-failed', 'gpu-recovering', 'gpu-unknown');
+            node.classList.add(`gpu-${g.state || 'unknown'}`);
+            const label = node.querySelector('.tp-gpu-label');
+            if (label) label.textContent = `GPU ${g.id}`;
         });
-
-        // Hide any extra placeholder GPU nodes
-        for (let i = latestGpuStatus.gpus.length; i < 8; i++) {
-            const el = document.getElementById(`topo-gpu-${i}`);
-            if (el) el.style.display = 'none';
-        }
     }
 
-    // Badges
+    // Badges in header
     const encodeBadge = document.getElementById('rs-encode-badge');
     const decodeBadge = document.getElementById('rs-decode-badge');
     const modeBadge = document.getElementById('topology-mode-badge');
@@ -311,23 +267,23 @@ function renderTopology() {
     if (encodeBadge) {
         if (topologyState.rsEncodeActive) {
             encodeBadge.textContent = 'RS Encode: active';
-            encodeBadge.className = 'badge bg-success';
+            encodeBadge.className = 'badge bg-success me-1';
         } else if (topologyState.inferenceActive) {
             encodeBadge.textContent = 'RS Encode: streaming';
-            encodeBadge.className = 'badge bg-info';
+            encodeBadge.className = 'badge bg-info me-1';
         } else {
             encodeBadge.textContent = 'RS Encode: idle';
-            encodeBadge.className = 'badge bg-secondary';
+            encodeBadge.className = 'badge bg-secondary me-1';
         }
     }
 
     if (decodeBadge) {
         if (topologyState.rsDecodeActive) {
             decodeBadge.textContent = 'RS Decode: recovering';
-            decodeBadge.className = 'badge bg-warning text-dark';
+            decodeBadge.className = 'badge bg-warning text-dark me-1';
         } else {
             decodeBadge.textContent = 'RS Decode: idle';
-            decodeBadge.className = 'badge bg-secondary';
+            decodeBadge.className = 'badge bg-secondary me-1';
         }
     }
 
@@ -340,6 +296,21 @@ function renderTopology() {
             modeBadge.className = 'badge bg-primary';
         }
     }
+
+    // Controller list highlighting
+    const setActive = (role, active) => {
+        const li = document.querySelector(`.tp-controller-list li[data-role="${role}"]`);
+        if (!li) return;
+        li.classList.toggle('tp-active', !!active);
+    };
+
+    setActive('inference', topologyState.inferenceActive);
+    setActive('gather', topologyState.inferenceActive);
+    setActive('rs-encode', topologyState.rsEncodeActive);
+    setActive('rs-decode', topologyState.rsDecodeActive);
+    setActive('kv-cache', topologyState.rsEncodeActive || topologyState.rsDecodeActive);
+    setActive('weights', latestGpuStatus && latestGpuStatus.gpus && latestGpuStatus.gpus.length > 1);
+    setActive('degraded', topologyState.degradedMode);
 }
 
 // ============================================
@@ -348,13 +319,14 @@ function renderTopology() {
 
 function renderGpus(status) {
     gpuGrid.innerHTML = '';
-    
+
     if (!status || !status.gpus) {
         gpuGrid.innerHTML = '<div class="col-12 text-center text-muted">Waiting for HPC connection...</div>';
+        // Still refresh topology (it will just be idle)
+        renderTopology();
         return;
     }
 
-    // Update header stats
     if (tpSizeEl) {
         tpSizeEl.textContent = status.tp_world_size || status.gpus.filter(g => g.state === 'healthy').length;
     }
@@ -366,7 +338,7 @@ function renderGpus(status) {
         let stateClass = 'gpu-unknown';
         let stateText = 'Unknown';
         let stateIcon = '❓';
-        
+
         if (g.state === 'healthy') {
             stateClass = 'gpu-healthy';
             stateText = 'Healthy';
@@ -408,7 +380,6 @@ function renderGpus(status) {
         gpuGrid.appendChild(col);
     });
 
-    // Attach kill handlers
     gpuGrid.querySelectorAll('button[data-gpu]').forEach(btn => {
         btn.onclick = () => {
             const gpuId = parseInt(btn.getAttribute('data-gpu'));
@@ -418,7 +389,7 @@ function renderGpus(status) {
         };
     });
 
-    // Sync topology visualization with latest GPU states
+    // Sync topology visualization
     renderTopology();
 }
 
@@ -487,10 +458,9 @@ function handleMessage(data) {
                 // Inference done → stop RS encode animation
                 topologyState.inferenceActive = false;
                 topologyState.rsEncodeActive = false;
-                // decodeActive may still be true if we're mid-recovery
+                // RS decode may still be active if we're mid-recovery
                 renderTopology();
             }
-            // Auto-scroll output
             outputEl.scrollTop = outputEl.scrollHeight;
             break;
 
@@ -498,39 +468,35 @@ function handleMessage(data) {
             appendEvent(data.msg || JSON.stringify(data));
             break;
 
-        case 'recovery_event':
-            const recoveryType = data.event === 'complete' ? 'success' : 
-                                 data.event === 'failed' ? 'error' : 'warning';
+        case 'recovery_event': {
+            const recoveryType = data.event === 'complete' ? 'success'
+                : data.event === 'failed' ? 'error'
+                : 'warning';
             appendEvent(`🔧 RECOVERY: ${data.msg}`, recoveryType);
             addChartAnnotation(data.msg);
 
-            // Drive topology animation based on recovery phase
             const ev = data.event;
             if (ev === 'started') {
-                // Failure detected, entering degraded mode
                 topologyState.degradedMode = true;
                 topologyState.rsDecodeActive = false;
             } else if (ev === 'kv_recovery') {
-                // RS decode from CPU backup
                 topologyState.degradedMode = true;
                 topologyState.rsDecodeActive = true;
                 topologyState.rsEncodeActive = false;
             } else if (ev === 'degraded_complete') {
-                // Now running stably with fewer GPUs (TP=3)
                 topologyState.degradedMode = true;
                 topologyState.rsDecodeActive = false;
             } else if (ev && ev.startsWith('hotswap_')) {
-                // Hot-swap path: bring GPU back, redistribute KV
                 topologyState.degradedMode = true;
                 topologyState.rsDecodeActive = true;
             } else if (ev === 'complete') {
-                // Full hot-swap finished → back to normal mode
                 topologyState.degradedMode = false;
                 topologyState.rsDecodeActive = false;
             }
 
             renderTopology();
             break;
+        }
 
         case 'status':
             if (data.status === 'disconnected' && data.role === 'hpc') {
@@ -539,7 +505,6 @@ function handleMessage(data) {
                 appendEvent('HPC disconnected', 'error');
                 renderGpus(null);
 
-                // Reset topology state
                 topologyState = {
                     inferenceActive: false,
                     rsEncodeActive: false,
@@ -592,7 +557,6 @@ function sendKill(gpuId) {
     ws.send(JSON.stringify(msg));
     appendEvent(`🔪 Requested kill of GPU ${gpuId}`, 'warning');
 
-    // Visually: enter degraded mode immediately
     topologyState.degradedMode = true;
     topologyState.failedGpuId = gpuId;
     renderTopology();
@@ -614,7 +578,7 @@ function sendPrompt() {
     currentRequestId = reqId;
     outputEl.textContent = '';
 
-    // Visually: inference started → start RS encode animation
+    // Inference starts → TP + RS encode become active
     topologyState.inferenceActive = true;
     topologyState.rsEncodeActive = true;
     topologyState.rsDecodeActive = false;
@@ -635,13 +599,9 @@ function sendPrompt() {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize charts
     initCharts();
-    
-    // Connect WebSocket
     connectWS();
 
-    // Setup event handlers
     if (sendBtn) {
         sendBtn.onclick = sendPrompt;
     }
@@ -655,7 +615,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initial render
     renderGpus(null);
 });
 

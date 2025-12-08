@@ -125,73 +125,45 @@ body {
 }
 
 /* ============================================
-   Topology / RS backup visualization
+   TP topology / KV backup visualization
    ============================================ */
 
-.topology-container {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-}
-
-.topology-node {
-    border-radius: 12px;
-    padding: 10px 14px;
-    background: #ffffff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
-    min-width: 140px;
-}
-
-.topology-node-title {
-    font-weight: 600;
-    font-size: 14px;
-}
-
-.topology-node-subtitle {
-    font-size: 12px;
-    color: #6c757d;
-}
-
-.topology-node-cpu {
-    flex: 0 0 190px;
-    border: 1px solid #dee2e6;
-}
-
-.topology-node-gpu-small {
-    flex: 0 0 90px;
-    text-align: center;
-    padding: 8px;
-    font-size: 12px;
-}
-
-.topology-gpu-strip {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    justify-content: flex-end;
-    flex: 0 0 auto;
-}
-
-.topology-links {
-    flex: 1 1 auto;
-    min-width: 160px;
-    position: relative;
+.tp-topology {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
 }
 
-.topology-link {
+.tp-gpu-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.tp-gpu-node {
+    flex: 0 0 80px;
+    border-radius: 10px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: 11px;
+    color: #fff;
+}
+
+.tp-gpu-label {
+    font-weight: 600;
+}
+
+/* Buses (NVLink and PCIe) */
+.tp-bus {
     position: relative;
-    height: 8px;
+    height: 12px;
     border-radius: 999px;
     background: #e9ecef;
     overflow: hidden;
+    margin-top: 4px;
 }
 
-.topology-link-label {
+.tp-bus-label {
     position: absolute;
     top: -18px;
     left: 50%;
@@ -202,17 +174,68 @@ body {
     letter-spacing: 0.06em;
 }
 
-.topology-link-pcie::before,
-.topology-link-nvlink::before {
-    content: "";
+/* Taps (vertical stubs up/down from the bus to each GPU) */
+.tp-bus-tap {
     position: absolute;
-    inset: 0;
-    transform: translateX(-100%);
-    opacity: 0;
+    width: 2px;
+    height: 10px;
+    background: #adb5bd;
+    bottom: 12px;
 }
 
-/* CPU memory bar (DRAM used for KV) */
-.topology-memory-bar {
+.tp-nvlink-tap-0 { left: 10%; }
+.tp-nvlink-tap-1 { left: 32%; }
+.tp-nvlink-tap-2 { left: 58%; }
+.tp-nvlink-tap-3 { left: 80%; }
+
+.tp-pcie-tap-0 { left: 10%; bottom: -10px; }
+.tp-pcie-tap-1 { left: 32%; bottom: -10px; }
+.tp-pcie-tap-2 { left: 58%; bottom: -10px; }
+.tp-pcie-tap-3 { left: 80%; bottom: -10px; }
+
+/* CPU / controller row */
+.tp-bottom-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.tp-cpu-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.tp-cpu-link {
+    width: 2px;
+    height: 18px;
+    background: #adb5bd;
+    margin-left: 10px;
+}
+
+.tp-cpu-box {
+    min-width: 190px;
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border: 1px solid #dee2e6;
+}
+
+.tp-node-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.tp-node-subtitle {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.tp-cpu-mem-bar {
     margin-top: 8px;
     height: 10px;
     border-radius: 5px;
@@ -220,61 +243,164 @@ body {
     overflow: hidden;
 }
 
-.topology-memory-fill {
+.tp-cpu-mem-fill {
     height: 100%;
-    width: 8%;
+    width: 10%;
     background: linear-gradient(90deg, #17a2b8, #6610f2);
     transition: width 0.4s ease;
 }
 
-/* Encode: GPUs -> CPU (green-ish flow left) */
-.topology-encode-active .topology-link-pcie::before,
-.topology-encode-active .topology-link-nvlink::before {
-    background: linear-gradient(90deg, rgba(40,167,69,0.2), rgba(40,167,69,0.9));
-    animation: topology-flow-encode 1.1s linear infinite;
-    opacity: 1;
+/* Controller box */
+.tp-controller-box {
+    flex: 1 1 auto;
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: #ffffff;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    border: 1px solid #dee2e6;
 }
 
-/* Decode: CPU -> GPUs (blue-ish flow right) */
-.topology-decode-active .topology-link-pcie::before,
-.topology-decode-active .topology-link-nvlink::before {
-    background: linear-gradient(90deg, rgba(23,162,184,0.2), rgba(23,162,184,0.9));
-    animation: topology-flow-decode 1.1s linear infinite;
-    opacity: 1;
+.tp-controller-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 6px 0 0 0;
 }
 
-@keyframes topology-flow-encode {
+.tp-controller-list li {
+    font-size: 12px;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #495057;
+}
+
+.tp-controller-list li::before {
+    content: "●";
+    font-size: 8px;
+    color: #adb5bd;
+}
+
+.tp-controller-list li.tp-active {
+    font-weight: 600;
+    color: #212529;
+}
+
+.tp-controller-list li.tp-active::before {
+    color: #0d6efd;
+}
+
+/* Topology-level state classes control animations */
+.tp-topology.tp-inference-active .tp-nvlink-bus::before,
+.tp-topology.tp-inference-active .tp-nvlink-bus::after {
+    opacity: 1;
+    animation: tp-flow-inference 1.3s linear infinite;
+}
+
+.tp-topology.tp-encode-active .tp-pcie-bus::before {
+    opacity: 1;
+    animation: tp-flow-encode 1.2s linear infinite;
+}
+
+.tp-topology.tp-decode-active .tp-pcie-bus::before {
+    opacity: 1;
+    animation: tp-flow-decode 1.2s linear infinite;
+}
+
+/* Bus flow overlays */
+.tp-nvlink-bus::before,
+.tp-pcie-bus::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    opacity: 0;
+}
+
+.tp-nvlink-bus::before {
+    background: linear-gradient(90deg, rgba(13,110,253,0.1), rgba(13,110,253,0.9));
+}
+
+.tp-pcie-bus::before {
+    background: linear-gradient(90deg, rgba(40,167,69,0.1), rgba(40,167,69,0.9));
+}
+
+/* Animations: direction encodes data flow */
+@keyframes tp-flow-inference {
     from { transform: translateX(-100%); }
     to   { transform: translateX(100%); }
 }
 
-@keyframes topology-flow-decode {
-    from { transform: translateX(100%); }
+@keyframes tp-flow-encode {
+    from { transform: translateX(-100%); } /* GPU → CPU */
+    to   { transform: translateX(100%); }
+}
+
+@keyframes tp-flow-decode {
+    from { transform: translateX(100%); }  /* CPU → GPU */
     to   { transform: translateX(-100%); }
 }
 
-/* Degraded mode: slightly dim the GPUs in the topology strip */
-.topology-degraded .topology-node-gpu-small {
-    opacity: 0.8;
+/* Degraded mode: dim GPUs slightly */
+.tp-topology.tp-degraded .tp-gpu-node {
+    opacity: 0.85;
 }
 
-/* Reuse GPU state colors for small GPU nodes */
-.topology-node-gpu-small.gpu-healthy {
-    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-    color: #fff;
-}
-
-.topology-node-gpu-small.gpu-failed {
-    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-    color: #fff;
-}
-
-.topology-node-gpu-small.gpu-recovering {
-    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
-    color: #212529;
-    animation: pulse 1s infinite;
-}
-
-.topology-legend {
+/* Legend */
+.tp-legend {
     line-height: 1.4;
+}
+
+.tp-legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.legend-box {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+}
+
+.legend-gpu-healthy {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.legend-gpu-failed {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+.legend-gpu-recovering {
+    background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+}
+
+.legend-line {
+    display: inline-block;
+    width: 40px;
+    height: 6px;
+    border-radius: 999px;
+    background: #e9ecef;
+}
+
+.legend-nvlink {
+    background: linear-gradient(90deg, #adb5bd, #6c757d);
+}
+
+.legend-pcie {
+    background: linear-gradient(90deg, #ced4da, #495057);
+}
+
+.legend-flow-inference {
+    background: linear-gradient(90deg, rgba(13,110,253,0.2), rgba(13,110,253,0.9));
+}
+
+.legend-flow-encode {
+    background: linear-gradient(90deg, rgba(40,167,69,0.2), rgba(40,167,69,0.9));
+}
+
+.legend-flow-decode {
+    background: linear-gradient(90deg, rgba(255,193,7,0.2), rgba(255,193,7,0.9));
 }
